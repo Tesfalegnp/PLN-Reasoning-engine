@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pln-metta-engine"
+version = "0.1.0"
+description = "Probabilistic Logic Network Reasoning System in MeTTa"
+authors = [{ name = "TrueAGI MeTTa PLN Team" }]
+requires-python = ">=3.10"
+dependencies = [
+    "hyperon>=0.2.10",
+    "streamlit>=1.35.0",
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
