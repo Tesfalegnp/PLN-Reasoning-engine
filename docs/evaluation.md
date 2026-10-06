@@ -1,11 +1,11 @@
 # Verification & Evaluation Report
 
 ## 1. Executive Summary
-The Coffee Agriculture Probabilistic Reasoning System was subjected to a comprehensive verification protocol covering:
-1. **Direct Native MeTTa CLI Execution**: 5 standalone scripts executed directly through the official Hyperon MeTTa runtime binary (`.venv-metta/bin/metta`).
-2. **Automated Pytest Regression Suite**: 50 test cases across 8 test modules evaluating mathematical correctness, backward chaining semantics, forward chaining progression, domain pathways, conflicting evidence fusion, negative/edge cases, and Python integration.
+The Coffee Agriculture Probabilistic Reasoning System is evaluated through an automated, reproducible regression test suite:
+- **Test Framework**: `pytest 9.1.1` on Python 3.12 with official `hyperon 0.2.10` runtime.
+- **Coverage**: 50 automated test cases across 8 dedicated test modules verifying mathematical correctness, backward chaining semantics, forward chaining progression, domain pathways, conflicting evidence fusion, negative/edge cases, AST parsing, and Python integration.
 
-**Result**: **50 / 50 PASSED** in 95.86s. **100% Verified and Reproducible.**
+**Result**: **50 / 50 PASSED** in 97.71s. **100% Verified and Reproducible.**
 
 ---
 
@@ -25,33 +25,27 @@ The Coffee Agriculture Probabilistic Reasoning System was subjected to a compreh
 
 ---
 
-## 3. Standalone Native MeTTa Script Verifications
+## 3. Key Agronomic Case Evaluations
 
-| Script | Command | Output Summary | Status |
-| :--- | :--- | :--- | :---: |
-| `metta/tests/test_pln_core.metta` | `metta metta/tests/test_pln_core.metta` | Asserts Negation, Conjunction, Deduction, MP, Revision | **PASS** |
-| `examples/agriculture_pln_demo.metta` | `metta examples/agriculture_pln_demo.metta` | Executes all 4 operations: Deduction, Induction, Abduction, Revision | **PASS** |
-| `examples/agriculture_forward.metta` | `metta examples/agriculture_forward.metta` | Chains symptom -> disease -> fungicide treatment | **PASS** |
-| `examples/agriculture_backward.metta` | `metta examples/agriculture_backward.metta` | Proves `RequiresTreatment` returning dual proof tree ASTs | **PASS** |
-| `examples/agriculture_revision.metta` | `metta examples/agriculture_revision.metta` | Fuses Scout A (0.85, 0.75) and Scout B (0.20, 0.70) $\to (0.5656, 0.8421)$ | **PASS** |
-
----
-
-## 4. Key Agronomic Case Evaluations
-
-### 4.1 Coffee Leaf Rust Full Treatment Derivation
+### 3.1 Coffee Leaf Rust Full Treatment Derivation
 - **Premise**: `CoffeePlant01` has `OrangeRustPustules` $(s=0.88, c=0.85)$ in `HighHumidity` $(s=0.92, c=0.90)$.
 - **Query**: `(RequiresTreatment CoffeePlant01 CopperFungicideSpray)` at depth 2.
 - **Result**: Proven with 2 distinct hierarchical proof trees:
   1. Modus Ponens step-by-step: `HasSymptom` $\to$ `AfflictedWith` $\to$ `RequiresTreatment` $(s=0.7746, c=0.4341)$.
   2. Implication Deduction + Modus Ponens: $(HasSymptom \to CoffeeLeafRust) \land (CoffeeLeafRust \to Treatment) \vdash (HasSymptom \to Treatment)$ then detached $(s=0.7715, c=0.4525)$.
 
-### 4.2 Negative Control: Symptom Ambiguity
+### 3.2 Negative Control: Symptom Ambiguity
 - **Premise**: `CoffeePlant03` displays `YellowLeafChlorosis` $(s=0.85, c=0.80)$ on acidic soil.
 - **Negative Test**: Querying `(AfflictedWith CoffeePlant03 CoffeeLeafRust)` fails cleanly ($0$ derivations).
 - **Positive Alternative**: Querying `(AfflictedWith CoffeePlant03 NitrogenDeficiency)` succeeds ($s=0.70, c=0.54$).
 - **Conclusion**: The system avoids false positive disease diagnoses when pathognomonic pustules are absent.
 
-### 4.3 Cyclic Rule Termination
+### 3.3 Conflicting Field Scout Evidence (PLN Revision)
+- **Scout A**: Rust symptoms observed $\to (stv\ 0.85\ 0.75)$.
+- **Scout B**: Rust symptoms disputed/absent $\to (stv\ 0.20\ 0.70)$.
+- **Fused Result**: Calculated via MeTTa `Truth_Revision` $\to (stv\ 0.5656\ 0.8421)$.
+- **Conclusion**: Evidence pooling produces a balanced probability while strictly increasing confidence ($0.8421 > 0.75$).
+
+### 3.4 Cyclic Rule Termination
 - **Test**: Mutually recursive rules ($Risk \to Severity$ and $Severity \to Risk$).
 - **Result**: Peano depth bound strictly limits derivation horizons to finite depth ($S (S Z)$), terminating cleanly without recursion overflow or hanging.

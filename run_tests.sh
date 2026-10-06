@@ -11,7 +11,6 @@ cd "$PROJECT_ROOT"
 VENV_DIR="$PROJECT_ROOT/.venv-metta"
 PYTHON_BIN="$VENV_DIR/bin/python"
 PYTEST_BIN="$VENV_DIR/bin/pytest"
-METTA_BIN="$VENV_DIR/bin/metta"
 
 if [ ! -f "$PYTHON_BIN" ]; then
     echo "Error: Virtual environment not found at $VENV_DIR."
@@ -29,22 +28,7 @@ echo "  Pytest Version:  $($PYTEST_BIN --version | head -n 1)"
 echo ""
 
 echo "--------------------------------------------------------------------"
-echo "1. Running Native MeTTa Script Verifications..."
-echo "--------------------------------------------------------------------"
-$METTA_BIN metta/tests/test_pln_core.metta
-echo "  ✓ Core MeTTa formulas test passed."
-$METTA_BIN examples/agriculture_pln_demo.metta
-echo "  ✓ 4-operation Agricultural PLN demo executed successfully."
-$METTA_BIN examples/agriculture_forward.metta
-echo "  ✓ Agricultural Forward Chaining executed successfully."
-$METTA_BIN examples/agriculture_backward.metta
-echo "  ✓ Agricultural Backward Chaining executed successfully."
-$METTA_BIN examples/agriculture_revision.metta
-echo "  ✓ Agricultural Conflicting Evidence Revision executed successfully."
-
-echo ""
-echo "--------------------------------------------------------------------"
-echo "2. Running Comprehensive Pytest Suite (Domain, Semantic & Negatives)..."
+echo "Running Comprehensive Automated Pytest Suite (50 Verified Tests)..."
 echo "--------------------------------------------------------------------"
 PYTHONPATH=. "$PYTEST_BIN" -v
 

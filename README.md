@@ -14,7 +14,7 @@ A complete, professional, reproducible **Probabilistic Logic Network (PLN)** rea
 
 ## 🏛 System Architecture
 
-The architecture enforces a strict decoupling: **core logical and probabilistic reasoning executes entirely in native MeTTa**, while Python and Streamlit serve strictly as an orchestration, parsing, and interactive visualization layer:
+The architecture enforces strict decoupling: **core logical and probabilistic reasoning executes entirely in native MeTTa**, while Python and Streamlit serve strictly as an orchestration, parsing, and interactive visualization layer:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -73,23 +73,29 @@ The system models expert coffee agronomy (*Coffea arabica*):
 
 ## 🔬 Four Agricultural PLN Operations
 
-| Operation | Mathematical Formula | Agricultural MeTTa Input | MeTTa Execution Output |
+| Operation | Mathematical Formula | Agricultural Demonstration Query | Output |
 | :--- | :--- | :--- | :--- |
-| **Deduction** | $s = s_1 s_2, \quad c = (s_1 s_2)(c_1 c_2)$ | `!(Truth_Deduction (stv 0.90 0.85) (stv 0.80 0.75))` | `(stv 0.7200 0.4590)` |
-| **Induction** | $s = s_{BA} s_{BC}, \quad c = \text{w2c}(s_{BC} c_{BC} c_{BA})$ | `!(Truth_Induction (stv 0.80 0.70) (stv 0.85 0.75))` | `(stv 0.6800 0.3086)` |
-| **Abduction** | $s = s_{AB} s_{CB}, \quad c = \text{w2c}(s_{AB} c_{AB} c_{CB})$ | `!(Truth_Abduction (stv 0.85 0.75) (stv 0.80 0.70))` | `(stv 0.6800 0.3086)` |
-| **Revision** | $w = w_1 + w_2, \quad s = \frac{s_1 w_1 + s_2 w_2}{w}, \quad c = \text{w2c}(w)$ | `!(Truth_Revision (stv 0.85 0.75) (stv 0.20 0.70))` | `(stv 0.5656 0.8421)` |
+| **Deduction** | $s = s_1 s_2, \quad c = (s_1 s_2)(c_1 c_2)$ | `OrangeRustPustules` $\to$ `CoffeeLeafRust` $\to$ `Fungicide` | `(stv 0.7200 0.4590)` |
+| **Induction** | $s = s_{BA} s_{BC}, \quad c = \text{w2c}(s_{BC} c_{BC} c_{BA})$ | `ArabicaBourbon` susceptibility generalization | `(stv 0.6800 0.3086)` |
+| **Abduction** | $s = s_{AB} s_{CB}, \quad c = \text{w2c}(s_{AB} c_{AB} c_{CB})$ | Differential defoliation etiology hypothesis | `(stv 0.6800 0.3086)` |
+| **Revision** | $w = w_1 + w_2, \quad s = \frac{s_1 w_1 + s_2 w_2}{w}, \quad c = \text{w2c}(w)$ | Fusing Scout A $(0.85, 0.75)$ and Scout B $(0.20, 0.70)$ | `(stv 0.5656 0.8421)` |
 
 ---
 
 ## 📁 Repository Directory Structure
 
-```
+```text
 pln_engin_project/
-├── metta/                             # 100% Native MeTTa Logic & Rules
-│   ├── main.metta                     # Unified master loading module
+├── .gitignore                         # Git ignore configuration
+├── README.md                          # Project overview & architectural guide
+├── pyproject.toml                     # Pytest and build configuration
+├── requirements.txt                   # Frozen dependencies
+├── run_tests.sh                       # Single-command automated test runner
+│
+├── metta/                             # Pure MeTTa Knowledge & Reasoning Engine
+│   ├── main.metta                     # Master initialization module
 │   ├── core/
-│   │   ├── pln_tv.metta               # Truth values: (stv s c), conversions, clamps
+│   │   ├── pln_tv.metta               # (stv s c), weight conversions, clamps
 │   │   └── pln_formulas.metta         # Deduction, MP, Revision, Induction, Abduction
 │   ├── chaining/
 │   │   ├── nat.metta                  # Peano natural numbers (Z, S k) for bounded depth
@@ -97,26 +103,21 @@ pln_engin_project/
 │   │   └── fc.metta                   # Step-bounded forward chainer
 │   ├── rules/
 │   │   ├── agriculture_rules.metta    # Inference rules: ded, mp, sim_sym
-│   │   └── rules.metta                # Alias to agriculture rules
-│   ├── kb/
-│   │   └── coffee_agriculture.metta   # Dedicated Coffee Agriculture Knowledge Base
-│   └── tests/
-│       └── test_pln_core.metta        # Native MeTTa test suite
-├── examples/
-│   ├── agriculture_pln_demo.metta     # 4 PLN operations CLI demo
-│   ├── agriculture_forward.metta      # Forward chaining CLI demo
-│   ├── agriculture_backward.metta     # Backward chaining CLI demo
-│   ├── agriculture_revision.metta     # Conflicting evidence CLI demo
-│   └── pln_demo.metta                 # Canonical demo script
-├── src/
-│   └── pln_engine/                    # Python Integration Layer
+│   │   └── rules.metta                # Clean rulebase alias
+│   └── kb/
+│       └── coffee_agriculture.metta   # Shared Coffee Agriculture Knowledge Base
+│
+├── src/                               # Python Integration Bridge
+│   └── pln_engine/
 │       ├── __init__.py
 │       ├── models.py                  # TruthValue, Statement, ProofNode, QueryResult
 │       ├── parser.py                  # Pure AST parser converting Hyperon atoms
 │       └── runner.py                  # Hyperon runner orchestrator
-├── streamlit_app/
-│   └── app.py                         # Interactive Streamlit Demo UI
-├── tests/                             # Automated Pytest Suite (50 tests)
+│
+├── streamlit_app/                     # Interactive Agronomic Reasoning UI
+│   └── app.py                         # Expert reasoning dashboard
+│
+├── tests/                             # Official Automated Test Suite (50 Tests)
 │   ├── test_pln_core.py               # PLN mathematical formulas & boundaries
 │   ├── test_forward_chaining.py       # Forward chaining Tests 1-9 on coffee KB
 │   ├── test_backward_chaining.py      # Backward chaining Cases A-G on coffee KB
@@ -125,21 +126,14 @@ pln_engin_project/
 │   ├── test_negative_and_edge_cases.py# Controls, missing facts, cyclic graphs
 │   ├── test_parser.py                 # AST expression and proof tree parser
 │   └── test_python_metta_integration.py # Python/Hyperon bridge verification
-├── docs/
-│   ├── agriculture-domain.md          # Full agronomy ontology and pathology specs
-│   ├── architecture.md                # System architecture and flow diagrams
-│   ├── official-audit.md              # TrueAGI source comparison table
-│   ├── reasoning-trace.md             # Proof AST structure and explainability
-│   ├── evaluation.md                  # Test metrics and benchmark results
-│   ├── demo-guide.md                  # Evaluator step-by-step reproduction guide
-│   ├── mentor-demo-script.md          # 5-10 minute presentation script
-│   ├── environment.md                 # Pinned system specifications and freeze
-│   ├── technical-report.md            # Comprehensive 20-section technical report
-│   └── final-validation-report.md     # Final validation report and checklist
-├── run_tests.sh                       # One-command verification script
-├── pyproject.toml
-├── requirements.txt
-└── README.md
+│
+└── docs/                              # Essential Project Documentation
+    ├── architecture.md                # System Architecture & MeTTa Pipeline
+    ├── agriculture-domain.md          # Coffee Pathology & Agronomic Ontology
+    ├── official-audit.md              # TrueAGI Hyperon/PLN Alignment Audit
+    ├── reasoning-trace.md             # Proof Tree AST & Explainability
+    ├── evaluation.md                  # Test Verification & Benchmark Results
+    └── demo-guide.md                  # Mentor Demonstration & Reproduction Guide
 ```
 
 ---
@@ -172,20 +166,11 @@ Output:
 Coffee Agriculture PLN Reasoning System — Verification Suite
 ====================================================================
 ...
-======================== 50 passed in 95.86s (0:01:35) =========================
+======================== 50 passed in 97.71s ========================
 ALL TESTS PASSED! System is 100% verified and reproducible.
 ```
 
-### Step 3: Run Direct MeTTa CLI Demos
-Verify that reasoning executes 100% natively in the official MeTTa interpreter without Python:
-```bash
-.venv-metta/bin/metta examples/agriculture_pln_demo.metta
-.venv-metta/bin/metta examples/agriculture_forward.metta
-.venv-metta/bin/metta examples/agriculture_backward.metta
-.venv-metta/bin/metta examples/agriculture_revision.metta
-```
-
-### Step 4: Launch Interactive Streamlit Demonstration
+### Step 3: Launch Interactive Streamlit Demonstration
 ```bash
 .venv-metta/bin/streamlit run streamlit_app/app.py
 ```

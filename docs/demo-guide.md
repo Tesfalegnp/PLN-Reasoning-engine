@@ -32,16 +32,15 @@ Expected output:
 ====================================================================
 Coffee Agriculture PLN Reasoning System — Verification Suite
 ====================================================================
-...
-1. Running Native MeTTa Script Verifications...
-  ✓ Core MeTTa formulas test passed.
-  ✓ 4-operation Agricultural PLN demo executed successfully.
-  ✓ Agricultural Forward Chaining executed successfully.
-  ✓ Agricultural Backward Chaining executed successfully.
-  ✓ Agricultural Conflicting Evidence Revision executed successfully.
+Environment Information:
+  Python Version:  Python 3.12.15
+  Hyperon Version: 0.2.10
+  Pytest Version:  pytest 9.1.1
 
-2. Running Comprehensive Pytest Suite (Domain, Semantic & Negatives)...
-======================== 50 passed in 95.86s (0:01:35) =========================
+--------------------------------------------------------------------
+Running Comprehensive Automated Pytest Suite (50 Verified Tests)...
+--------------------------------------------------------------------
+======================== 50 passed in 97.71s ========================
 ====================================================================
 ALL TESTS PASSED! System is 100% verified and reproducible.
 ====================================================================
@@ -105,22 +104,3 @@ Open [http://localhost:8501](http://localhost:8501) in your browser.
 2. Click **Run Forward Comparison** and **Run Backward Comparison**.
 3. **Observed Output**:
    - Both forward data-driven exploration and backward goal-directed search operate over the **same** knowledge base (`coffee_agriculture.metta`) and deduce equivalent treatment recommendations with matching truth value parameters.
-
----
-
-## 5. Direct Native MeTTa CLI Execution
-
-To verify that the engine runs 100% inside native MeTTa without Python:
-```bash
-# 1. Four PLN Operations Demo (Deduction, Induction, Abduction, Revision)
-.venv-metta/bin/metta examples/agriculture_pln_demo.metta
-
-# 2. Forward Chaining Demo
-.venv-metta/bin/metta examples/agriculture_forward.metta
-
-# 3. Backward Chaining Proof Tree Demo
-.venv-metta/bin/metta examples/agriculture_backward.metta
-
-# 4. Conflicting Evidence Revision Demo
-.venv-metta/bin/metta examples/agriculture_revision.metta
-```
