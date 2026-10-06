@@ -17,3 +17,12 @@ dependencies = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.pyrefly]
+search-path = ["."]
+python-interpreter = ".venv-metta/bin/python"
+project-includes = [
+    "src/**/*.py",
+    "tests/**/*.py",
+    "streamlit_app/**/*.py",
+]
