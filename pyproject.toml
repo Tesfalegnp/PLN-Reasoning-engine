@@ -1,28 +1,20 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pln-metta-engine"
-version = "0.1.0"
-description = "Probabilistic Logic Network Reasoning System in MeTTa"
-authors = [{ name = "TrueAGI MeTTa PLN Team" }]
+name = "agri-pln-metta"
+version = "1.0.0"
+description = "Domain-Specific Agricultural Probabilistic Logic Network (PLN) Reasoning Engine implemented in Hyperon MeTTa"
+readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Agricultural PLN Team" }
+]
 dependencies = [
-    "hyperon>=0.2.10",
-    "streamlit>=1.35.0",
-    "pytest>=8.0.0",
+    "hyperon>=0.2.10"
 ]
 
-[tool.pytest.ini_options]
-pythonpath = ["."]
-testpaths = ["tests"]
-
-[tool.pyrefly]
-search-path = ["."]
-python-interpreter = ".venv-metta/bin/python"
-project-includes = [
-    "src/**/*.py",
-    "tests/**/*.py",
-    "streamlit_app/**/*.py",
-]
+[project.scripts]
+agri-pln = "cli:main"
