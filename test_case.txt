@@ -1,0 +1,110 @@
+AGRICULTURAL PLN TEST SCENARIO
+==============================
+
+FACTS
+
+F1:
+soil-dry
+STV = <0.90, 0.90>
+
+F2:
+temperature-high
+STV = <0.85, 0.88>
+
+F6:
+water-available
+STV = <0.95, 0.90>
+
+F7:
+farmer-can-irrigate
+STV = <0.90, 0.85>
+
+
+RULES
+
+R1:
+soil-dry AND temperature-high
+    ->
+coffee-plant-water-stressed
+
+R2:
+coffee-plant-water-stressed AND water-available
+    ->
+irrigation-recommended
+
+R3:
+irrigation-recommended AND farmer-can-irrigate
+    ->
+irrigate-coffee-plant
+
+
+FORWARD CHAINING
+
+Start:
+soil-dry
+
+Search forward through applicable rules.
+
+Expected conceptual chain:
+
+soil-dry + temperature-high
+    ->
+coffee-plant-water-stressed
+
+coffee-plant-water-stressed + water-available
+    ->
+irrigation-recommended
+
+irrigation-recommended + farmer-can-irrigate
+    ->
+irrigate-coffee-plant
+
+
+BACKWARD CHAINING
+
+Goal:
+irrigate-coffee-plant
+
+Search backward:
+
+irrigate-coffee-plant
+    requires
+irrigation-recommended
++
+farmer-can-irrigate
+
+irrigation-recommended
+    requires
+coffee-plant-water-stressed
++
+water-available
+
+coffee-plant-water-stressed
+    requires
+soil-dry
++
+temperature-high
+
+Finally:
+
+soil-dry = known fact
+temperature-high = known fact
+water-available = known fact
+farmer-can-irrigate = known fact
+
+Therefore:
+
+irrigate-coffee-plant
+is supported by the available knowledge.
+
+
+PLN
+
+Every probabilistic fact/rule carries:
+
+<strength, confidence>
+
+The engine propagates these values through inference.
+
+The purpose is to demonstrate reasoning under uncertain
+evidence rather than only binary true/false logic.
