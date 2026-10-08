@@ -1,2 +1,0 @@
-hyperon>=0.2.10
-pytest>=8.0.0
