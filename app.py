@@ -44,6 +44,14 @@ def initialize_engine():
         code = load_file(path)
         mt.run(code)
 
+    # Register AtomSpace helper function
+    mt.run("""
+    (= (fact-stv $fact)
+        (match &self
+            (: $id $fact (stv $s $c))
+            (stv-value $s $c)))
+    """)
+
 
 # ============================================================
 # FORMAT RESULT
@@ -51,12 +59,15 @@ def initialize_engine():
 
 def format_result(result):
     if not result:
-        return "No result returned."
+        return "No result returned from AtomSpace."
 
     lines = []
-
-    for item in result:
-        lines.append(str(item))
+    for group in result:
+        if isinstance(group, list):
+            for item in group:
+                lines.append(str(item))
+        else:
+            lines.append(str(group))
 
     return "\n".join(lines)
 
@@ -70,10 +81,9 @@ def run_deduction():
 
     try:
         code = """
-        !(deduction
-            (fact-stv (soil-dry))
-            (fact-stv (temperature-high))
-            (stv-value 0 0))
+        !(let $a (fact-stv (soil-dry))
+            (let $b (fact-stv (temperature-high))
+                (deduction $a $b)))
         """
 
         result = mt.run(code)
@@ -82,14 +92,11 @@ def run_deduction():
             tk.END,
             "PLN DEDUCTION\n"
             "==============\n\n"
-            "Premise 1:\n"
-            "soil-dry\n\n"
-            "Premise 2:\n"
-            "temperature-high\n\n"
-            "Conclusion:\n"
-            "coffee-plant-water-stressed\n\n"
-            "Truth-value calculation:\n"
-            f"{format_result(result)}\n"
+            "Querying AtomSpace:\n"
+            "  Fact 1: (soil-dry) -> (stv 0.90 0.90)\n"
+            "  Fact 2: (temperature-high) -> (stv 0.85 0.88)\n\n"
+            "Deduction Formula: s = s1 * s2, c = c1 * c2\n\n"
+            f"AtomSpace Result:\n{format_result(result)}\n"
         )
 
     except Exception as error:
@@ -104,13 +111,7 @@ def run_forward():
     output.delete("1.0", tk.END)
 
     try:
-        code = """
-        !(forward-query
-            (soil-dry)
-            (agri-kb)
-            (agri-rules)
-            (fromNumber 4))
-        """
+        code = "!(forward-query (soil-dry) &self (fromNumber 3))"
 
         result = mt.run(code)
 
@@ -118,11 +119,11 @@ def run_forward():
             tk.END,
             "FORWARD CHAINING\n"
             "================\n\n"
-            "Starting fact:\n"
-            "soil-dry\n\n"
+            "Starting Fact:\n"
+            "  (soil-dry)\n\n"
             "Direction:\n"
-            "FACT → RULE → CONCLUSION → NEXT RULE\n\n"
-            f"Engine result:\n{format_result(result)}\n"
+            "  Data-Driven Expansion (FACT -> RULE -> CONCLUSION)\n\n"
+            f"Derived Conclusions from AtomSpace:\n{format_result(result)}\n"
         )
 
     except Exception as error:
@@ -137,13 +138,7 @@ def run_backward():
     output.delete("1.0", tk.END)
 
     try:
-        code = """
-        !(backward-query
-            (irrigate-coffee-plant)
-            (agri-kb)
-            (agri-rules)
-            (fromNumber 5))
-        """
+        code = "!(backward-query (irrigate-coffee-plant) &self (fromNumber 3))"
 
         result = mt.run(code)
 
@@ -151,11 +146,11 @@ def run_backward():
             tk.END,
             "BACKWARD CHAINING\n"
             "=================\n\n"
-            "Goal:\n"
-            "irrigate-coffee-plant\n\n"
+            "Target Goal:\n"
+            "  (irrigate-coffee-plant)\n\n"
             "Direction:\n"
-            "GOAL → REQUIRED PREMISES → FACTS\n\n"
-            f"Engine result:\n{format_result(result)}\n"
+            "  Goal-Driven Search (GOAL -> REQUIRED SUBGOALS -> FACTS)\n\n"
+            f"Generated Proof Tree from AtomSpace:\n{format_result(result)}\n"
         )
 
     except Exception as error:
@@ -171,21 +166,17 @@ def run_scenario():
 
     try:
         code = """
-        !(deduction
-            (fact-stv (soil-dry))
-            (fact-stv (temperature-high))
-            (stv-value 0 0))
+        !(let $a (fact-stv (soil-dry))
+            (let $b (fact-stv (temperature-high))
+                (deduction $a $b)))
 
-        !(deduction
-            (stv-value 0.765 0.792)
-            (fact-stv (water-available))
-            (stv-value 0 0))
+        !(let $ab (let $a (fact-stv (soil-dry))
+                      (let $b (fact-stv (temperature-high))
+                          (deduction $a $b)))
+            (let $c (fact-stv (water-available))
+                (deduction $ab $c)))
 
-        !(backward-query
-            (irrigate-coffee-plant)
-            (agri-kb)
-            (agri-rules)
-            (fromNumber 5))
+        !(backward-query (irrigate-coffee-plant) &self (fromNumber 3))
         """
 
         result = mt.run(code)
@@ -194,26 +185,8 @@ def run_scenario():
             tk.END,
             "AGRICULTURAL PLN SCENARIO\n"
             "==========================\n\n"
-            "Observed facts:\n"
-            "  • Soil is dry\n"
-            "  • Temperature is high\n"
-            "  • Water is available\n"
-            "  • Farmer can irrigate\n\n"
-            "Reasoning chain:\n\n"
-            "  soil-dry\n"
-            "       +\n"
-            "  temperature-high\n"
-            "       ↓\n"
-            "  coffee-plant-water-stressed\n"
-            "       +\n"
-            "  water-available\n"
-            "       ↓\n"
-            "  irrigation-recommended\n"
-            "       +\n"
-            "  farmer-can-irrigate\n"
-            "       ↓\n"
-            "  irrigate-coffee-plant\n\n"
-            f"Engine output:\n{format_result(result)}\n"
+            "Executing Multi-Step Agricultural Scenario on AtomSpace...\n\n"
+            f"AtomSpace Execution Output:\n{format_result(result)}\n"
         )
 
     except Exception as error:
@@ -221,19 +194,15 @@ def run_scenario():
 
 
 # ============================================================
-# GUI
+# GUI SETUP
 # ============================================================
 
 initialize_engine()
 
 root = tk.Tk()
-
 root.title("Agricultural PLN Reasoning Engine")
-
 root.geometry("950x700")
-
 root.configure(bg="#101827")
-
 
 title = tk.Label(
     root,
@@ -242,9 +211,7 @@ title = tk.Label(
     bg="#101827",
     fg="white"
 )
-
 title.pack(pady=20)
-
 
 subtitle = tk.Label(
     root,
@@ -253,69 +220,38 @@ subtitle = tk.Label(
     bg="#101827",
     fg="#aeb9cc"
 )
-
 subtitle.pack(pady=(0, 20))
 
-
-button_frame = tk.Frame(
-    root,
-    bg="#101827"
-)
-
+button_frame = tk.Frame(root, bg="#101827")
 button_frame.pack(pady=10)
-
 
 deduction_button = ttk.Button(
     button_frame,
     text="PLN Deduction",
     command=run_deduction
 )
-
-deduction_button.grid(
-    row=0,
-    column=0,
-    padx=8
-)
-
+deduction_button.grid(row=0, column=0, padx=8)
 
 forward_button = ttk.Button(
     button_frame,
     text="Forward Chaining",
     command=run_forward
 )
-
-forward_button.grid(
-    row=0,
-    column=1,
-    padx=8
-)
-
+forward_button.grid(row=0, column=1, padx=8)
 
 backward_button = ttk.Button(
     button_frame,
     text="Backward Chaining",
     command=run_backward
 )
-
-backward_button.grid(
-    row=0,
-    column=2,
-    padx=8
-)
-
+backward_button.grid(row=0, column=2, padx=8)
 
 scenario_button = ttk.Button(
     button_frame,
     text="Run Agriculture Scenario",
     command=run_scenario
 )
-
-scenario_button.grid(
-    row=0,
-    column=3,
-    padx=8
-)
-
+scenario_button.grid(row=0, column=3, padx=8)
 
 output = ScrolledText(
     root,
@@ -327,13 +263,6 @@ output = ScrolledText(
     insertbackground="white",
     wrap=tk.WORD
 )
-
-output.pack(
-    padx=30,
-    pady=25,
-    fill=tk.BOTH,
-    expand=True
-)
-
+output.pack(padx=30, pady=25, fill=tk.BOTH, expand=True)
 
 root.mainloop()
