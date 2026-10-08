@@ -31,7 +31,7 @@ pln-engine/
 │   ├── test_full_scenario.metta     # Full scenario integration tests
 │   ├── test_evaluation_scenarios.metta # 5 PDF evaluation scenarios
 │   └── test_agriculture.metta       # Master integration test suite
-├── FrontEnd.py                      # Interactive Streamlit Web UI Dashboard
+├── app.py                           # Interactive Desktop GUI Dashboard
 └── README.md                        # Quick start guide & documentation
 ```
 
@@ -62,8 +62,8 @@ metta test/test_agriculture.metta
 
 ## 🖥️ Running the Interactive Dashboard
 
-Launch the Streamlit web dashboard:
+Launch the GUI dashboard:
 
 ```bash
-streamlit run FrontEnd.py
+python app.py
 ```

@@ -52,7 +52,7 @@ pln-engine/
 │   ├── test_full_scenario.metta     # Full scenario integration tests
 │   ├── test_evaluation_scenarios.metta # 5 PDF evaluation scenarios
 │   └── test_agriculture.metta   # Master test suite
-├── FrontEnd.py                  # Interactive Streamlit Web UI Dashboard
+├── app.py                       # Interactive Desktop GUI Dashboard
 ├── README.md                    # System instructions & quick start guide
 └── test_case.txt                # Sample query definitions
 ```
