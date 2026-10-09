@@ -92,9 +92,7 @@ def validate_stv(strength, confidence):
     confidence = float(confidence)
 
     if not 0.0 <= strength <= 1.0:
-        raise ValueError(
-            f"Strength must be between 0 and 1: {strength}"
-        )
+        raise ValueError(f"Strength must be between 0 and 1: {strength}")
 
     if not 0.0 <= confidence <= 1.0:
         raise ValueError(
@@ -109,6 +107,13 @@ def stv_text(stv):
 
 
 def parse_stv(result):
+    """
+    Parse a truth value returned by the MeTTa runtime.
+
+    Accepted result formats include:
+        (stv-value 0.765 0.792)
+        (stv 0.765 0.792)
+    """
     text = format_result(result)
 
     pattern = re.compile(
@@ -125,24 +130,34 @@ def parse_stv(result):
         )
 
     strength, confidence = matches[-1].groups()
-
     return validate_stv(strength, confidence)
 
 
 def load_project():
+    """
+    Load the knowledge base and the actual MeTTa implementations.
+
+    Python reads fact/rule metadata to populate the UI. The inference
+    operations themselves are executed by the MeTTa implementation.
+    """
     global facts, rules
 
     fact_source = read_source(FACT_FILE)
     rule_source = read_source(RULE_FILE)
     pln_source = read_source(PLN_FILE)
 
+    # Load the knowledge base and rule base.
     execute(fact_source)
     execute(rule_source)
+
+    # Load the actual PLN operations.
     execute(pln_source)
 
+    # Load both search engines.
     for path in CHAIN_FILES:
         execute(read_source(path))
 
+    # Helper that queries stored fact truth values from AtomSpace.
     execute("""
     (= (fact-stv $fact)
         (match &self
@@ -150,6 +165,8 @@ def load_project():
             (stv-value $s $c)))
     """)
 
+    # Parse fact names and IDs from the knowledge-base source.
+    # STVs are queried from MeTTa when an operation is executed.
     facts = {}
 
     for match in FACT_PATTERN.finditer(fact_source):
@@ -160,6 +177,7 @@ def load_project():
             "source_stv": validate_stv(strength, confidence),
         }
 
+    # Parse rules from the actual rule file.
     rules = []
 
     for match in RULE_PATTERN.finditer(rule_source):
@@ -198,17 +216,22 @@ def load_project():
 # ============================================================
 
 def query_fact_stv(expression):
+    """Ask the loaded MeTTa engine for an original fact's STV."""
     if expression not in facts:
-        raise ValueError(
-            f"Not an original knowledge-base fact: {expression}"
-        )
+        raise ValueError(f"Not an original knowledge-base fact: {expression}")
 
     result = execute(f"!(fact-stv {expression})")
-
     return parse_stv(result)
 
 
 def get_stv(expression, prefer_derived=True):
+    """
+    Get a truth value.
+
+    For a fact derived during this session, prefer the latest derived STV.
+    When inspecting original evidence, prefer_derived=False returns the
+    original STV from the loaded knowledge base.
+    """
     if prefer_derived and expression in derived_facts:
         return derived_facts[expression]
 
@@ -222,11 +245,11 @@ def get_stv(expression, prefer_derived=True):
 
 
 def all_expressions():
+    """Facts, derived conclusions, and rule conclusions for selectors."""
     expressions = list(facts.keys())
 
     for rule in rules:
         conclusion = rule["conclusion"]
-
         if conclusion not in expressions:
             expressions.append(conclusion)
 
@@ -246,21 +269,11 @@ def get_rule(rule_id):
 
 
 def matching_rule(fact_a, fact_b):
-    """
-    Find a rule whose two premises match the inputs.
-
-    The order of the selected inputs does not matter.
-    No rule is selected from the user's rule selector.
-    """
-
+    """Find a rule whose two premises match the selected facts."""
     for rule in rules:
-        if (
-            rule["premise1"] == fact_a
-            and rule["premise2"] == fact_b
-        ) or (
-            rule["premise1"] == fact_b
-            and rule["premise2"] == fact_a
-        ):
+        pair = {rule["premise1"], rule["premise2"]}
+
+        if pair == {fact_a, fact_b}:
             return rule
 
     return None
@@ -277,12 +290,12 @@ def refresh_selectors():
     choices = all_expressions()
     rule_ids = [rule["id"] for rule in rules]
 
+    # Keep the existing fact/rule selectors restricted to loaded choices.
     for combo in (
         fact1_combo,
         fact2_combo,
         revision_target_combo,
         evidence_combo,
-        goal_combo,
     ):
         current = combo.get()
         combo["values"] = choices
@@ -293,6 +306,12 @@ def refresh_selectors():
             combo.current(0)
         else:
             combo.set("")
+
+    # The backward goal is editable: preserve any valid custom user input.
+    current_goal = goal_combo.get().strip()
+    goal_combo["values"] = choices
+    if not current_goal and choices:
+        goal_combo.set(choices[0])
 
     current_rule = rule_combo.get()
     rule_combo["values"] = rule_ids
@@ -319,10 +338,10 @@ OPERATIONS = {
 
 def run_pln_operation(operation, stv1, stv2):
     """
-    Execute the operation implemented in engine/pln.metta.
-    Python does not reimplement the PLN formulas.
-    """
+    Invoke the operation defined in engine/pln.metta.
 
+    The formulas are not reimplemented in Python.
+    """
     if operation not in OPERATIONS:
         raise ValueError(f"Unsupported operation: {operation}")
 
@@ -364,8 +383,7 @@ def show_error(title, error):
     show_output(
         title,
         f"Operation failed:\n\n{error}\n\n"
-        "Check the MeTTa result, selected inputs, "
-        "and the rules loaded from rule.metta."
+        "Check the MeTTa result, selected facts, and loaded rules."
     )
 
 
@@ -393,10 +411,11 @@ def rule_details(lines, rule):
 
 def save_derived(expression, stv, description):
     """
-    Save a derived result for use by later GUI operations.
-    Source files are not modified.
-    """
+    Save a derived result in the current GUI session.
 
+    This does not modify agriculture.metta or insert a new atom into
+    AtomSpace. It makes the derived STV available to later GUI operations.
+    """
     derived_facts[expression] = stv
 
     reasoning_history.append({
@@ -407,8 +426,7 @@ def save_derived(expression, stv, description):
 
 
 # ============================================================
-# DEDUCTION AND INDUCTION
-# AUTOMATIC RULE SELECTION
+# GENERAL OPERATION TRACE
 # ============================================================
 
 def run_selected_operation():
@@ -426,18 +444,13 @@ def run_selected_operation():
 
     try:
         lines = []
+        rule = get_rule(selected_rule_id) if selected_rule_id else None
 
         section(lines, "STEP 1 — SELECTED OPERATION")
         row(lines, "Operation", operation)
         row(lines, "MeTTa function", OPERATIONS[operation])
 
-        # ----------------------------------------------------
-        # DEDUCTION AND INDUCTION
-        # Automatically match a rule from the two premises.
-        # ----------------------------------------------------
-
         if operation in ("Deduction", "Induction"):
-
             stv_a = get_stv(fact_a)
             stv_b = get_stv(fact_b)
 
@@ -449,121 +462,88 @@ def run_selected_operation():
             row(lines, "Fact / conclusion", fact_b)
             show_stv(lines, "Input STV", stv_b)
 
-            # AUTOMATIC RULE MATCHING
-            rule = matching_rule(fact_a, fact_b)
+            matched = matching_rule(fact_a, fact_b)
 
-            section(lines, "STEP 4 — AUTOMATIC RULE SELECTION")
+            if matched:
+                rule = matched
 
-            if rule is None:
-                raise ValueError(
-                    f"No matching rule was found for:\n"
-                    f"  Input 1: {fact_a}\n"
-                    f"  Input 2: {fact_b}\n\n"
-                    "The two inputs must match the premises of "
-                    "a rule loaded from knowledge/rule.metta.\n"
-                    "The rule selector is not used for deduction "
-                    "or induction."
+            section(lines, "STEP 4 — MATCHING RULE")
+            if rule:
+                rule_details(lines, rule)
+            else:
+                lines.append(
+                    "No rule with these two premises was found."
+                )
+                lines.append(
+                    "The selected two-input PLN operation can still run."
                 )
 
-            rule_details(lines, rule)
+            result = run_pln_operation(operation, stv_a, stv_b)
 
-            row(
-                lines,
-                "Rule selection",
-                "Automatically matched from input premises",
-            )
-
-            # Execute the selected PLN formula in MeTTa.
-            result = run_pln_operation(
-                operation,
-                stv_a,
-                stv_b,
-            )
-
-            # Use the conclusion of the matched rule.
-            derived_expression = rule["conclusion"]
-
-            save_derived(
-                derived_expression,
-                result["stv"],
-                f"{operation} using automatically matched "
-                f"rule {rule['id']}",
-            )
+            if operation == "Deduction" and rule:
+                derived_expression = rule["conclusion"]
+                save_derived(
+                    derived_expression,
+                    result["stv"],
+                    f"Deduction using {rule['id']}",
+                )
+            else:
+                derived_expression = (
+                    f"(derived-{operation.lower()} "
+                    f"{fact_a} {fact_b})"
+                )
+                save_derived(
+                    derived_expression,
+                    result["stv"],
+                    f"{operation} from selected inputs",
+                )
 
             section(lines, "STEP 5 — METTA EXECUTION")
             row(lines, "Query", result["query"])
             row(lines, "Raw result", result["raw"])
 
-            section(lines, "STEP 6 — DERIVED CONCLUSION")
-            row(lines, "Rule applied", rule["id"])
-            row(lines, "Conclusion", derived_expression)
-            show_stv(lines, "Conclusion STV", result["stv"])
+            section(lines, "STEP 6 — RESULT")
+            row(lines, "Derived expression", derived_expression)
+            show_stv(lines, "Result STV", result["stv"])
 
-            if operation == "Deduction":
-                row(
-                    lines,
-                    "Reasoning direction",
-                    "Premises → Conclusion",
-                )
+            if operation == "Induction":
+                row(lines, "Interpretation", "Evidence → Generalization")
             else:
-                row(
-                    lines,
-                    "Reasoning direction",
-                    "Selected evidence → Generalization",
-                )
-
-            lines.append("")
-            lines.append(
-                "The STV displayed for the conclusion is the result "
-                "returned by the selected MeTTa operation."
-            )
-
-        # ----------------------------------------------------
-        # ABDUCTION
-        # The user selects an explanatory rule.
-        # ----------------------------------------------------
+                row(lines, "Interpretation", "Premises → Conclusion")
 
         elif operation == "Abduction":
-
+            # For abduction, fact A is the observed conclusion.
             observed = fact_a
             observed_stv = get_stv(observed)
 
-            # For abduction, the rule selector remains available.
-            if not selected_rule_id:
-                raise ValueError(
-                    "Select an explanatory rule for abduction."
-                )
+            # Prefer a rule that actually concludes the observation.
+            candidates = rules_for_conclusion(observed)
 
-            rule = get_rule(selected_rule_id)
+            if candidates:
+                rule = next(
+                    (r for r in candidates if r["id"] == selected_rule_id),
+                    candidates[0],
+                )
 
             section(lines, "STEP 2 — OBSERVED FACT")
             row(lines, "Observed fact", observed)
             show_stv(lines, "Observed STV", observed_stv)
 
             section(lines, "STEP 3 — SELECTED EXPLANATORY RULE")
+            if not rule:
+                raise ValueError("Select a rule for abduction.")
+
             rule_details(lines, rule)
 
             if rule["conclusion"] != observed:
-                raise ValueError(
-                    f"The selected rule {rule['id']} does not "
-                    f"conclude the observed fact {observed}.\n\n"
-                    f"Rule conclusion: {rule['conclusion']}\n"
-                    "Select a rule whose conclusion matches "
-                    "the observed fact."
+                lines.append(
+                    "WARNING: the selected rule's conclusion differs "
+                    "from the observed fact. Choose a matching rule "
+                    "for a meaningful explanation."
                 )
 
-            section(lines, "STEP 4 — RULE PREMISES")
-
-            row(lines, "Possible premise 1", rule["premise1"])
-            row(lines, "Possible premise 2", rule["premise2"])
-
-            row(
-                lines,
-                "Explanation",
-                f"{rule['premise1']} AND {rule['premise2']}",
-            )
-
-            # Execute the actual MeTTa abduction function.
+            # Abduction combines the observed STV with the rule STV
+            # using the operation implemented by this project's PLN.
             result = run_pln_operation(
                 "Abduction",
                 observed_stv,
@@ -581,37 +561,21 @@ def run_selected_operation():
                 f"Abduction using {rule['id']}",
             )
 
-            section(lines, "STEP 5 — METTA EXECUTION")
+            section(lines, "STEP 4 — METTA EXECUTION")
             row(lines, "Query", result["query"])
             row(lines, "Raw result", result["raw"])
 
-            section(lines, "STEP 6 — POSSIBLE EXPLANATION")
-            row(lines, "Selected rule", rule["id"])
-            row(lines, "Premise 1", rule["premise1"])
-            row(lines, "Premise 2", rule["premise2"])
-            row(lines, "Observed conclusion", observed)
-            row(lines, "Explanation expression", explanation)
-
-            show_stv(lines, "Explanation STV", result["stv"])
-
-            row(
-                lines,
-                "Reasoning direction",
-                "Observed conclusion → Possible explanation",
-            )
-
-        # ----------------------------------------------------
-        # REVISION
-        # Keep the existing revision inputs and behavior.
-        # ----------------------------------------------------
+            section(lines, "STEP 5 — POSSIBLE EXPLANATION")
+            row(lines, "Explanation", (
+                f"{rule['premise1']} AND {rule['premise2']}"
+            ))
+            show_stv(lines, "Result STV", result["stv"])
+            row(lines, "Direction", "Observed conclusion → Possible causes")
 
         elif operation == "Revision":
-
-            existing_stv = get_stv(
-                fact_a,
-                prefer_derived=False,
-            )
-
+            # Revise the selected proposition using the manually entered
+            # strength and confidence for the new evidence.
+            existing_stv = get_stv(fact_a, prefer_derived=False)
             evidence_stv = validate_stv(
                 new_evidence_strength_var.get(),
                 new_evidence_confidence_var.get(),
@@ -644,19 +608,15 @@ def run_selected_operation():
             section(lines, "STEP 5 — REVISED TRUTH VALUE")
             row(lines, "Revised proposition", fact_a)
             show_stv(lines, "Revised STV", result["stv"])
-
             row(
                 lines,
-                "Reasoning direction",
+                "Direction",
                 "Existing evidence + New evidence → Revised STV",
             )
 
         refresh_selectors()
-
-        show_output(
-            f"{operation.upper()} — STEP-BY-STEP TRACE",
-            "\n".join(lines),
-        )
+        show_output(f"{operation.upper()} — STEP-BY-STEP TRACE",
+                    "\n".join(lines))
 
     except Exception as error:
         show_error(f"{operation.upper()} TRACE", error)
@@ -685,10 +645,7 @@ def show_all_facts():
                 show_stv(lines, "Truth value", stv)
                 lines.append("")
 
-        show_output(
-            "FACTS AND STV VALUES",
-            "\n".join(lines),
-        )
+        show_output("FACTS AND STV VALUES", "\n".join(lines))
 
     except Exception as error:
         show_error("FACTS AND STV VALUES", error)
@@ -705,10 +662,7 @@ def show_all_rules():
         section(lines, rule["id"])
         rule_details(lines, rule)
 
-    show_output(
-        "RULES LOADED FROM rule.metta",
-        "\n".join(lines),
-    )
+    show_output("RULES LOADED FROM rule.metta", "\n".join(lines))
 
 
 # ============================================================
@@ -743,16 +697,18 @@ def run_forward():
             f"Maximum depth: {depth_limit}",
             "",
             "Rules are read from rule.metta.",
-            "Operations are executed using pln.metta.",
+            "Operations are executed using the loaded pln.metta functions.",
         ]
 
         frontier = {start}
         fired_rules = set()
+        final_frontier = set()
 
         for depth in range(1, depth_limit + 1):
             section(lines, f"DEPTH {depth}")
 
             next_frontier = set()
+            applied_this_depth = 0
 
             for rule in rules:
                 if rule["id"] in fired_rules:
@@ -761,6 +717,8 @@ def run_forward():
                 p1 = rule["premise1"]
                 p2 = rule["premise2"]
 
+                # A rule is relevant if at least one premise belongs
+                # to the current frontier and both premises are known.
                 if p1 not in frontier and p2 not in frontier:
                     continue
 
@@ -782,14 +740,10 @@ def run_forward():
                 section(lines, f"APPLY {rule['id']}")
                 rule_details(lines, rule)
 
-                show_stv(lines, "Premise 1 STV", stv1)
-                show_stv(lines, "Premise 2 STV", stv2)
+                row(lines, "Premise 1 STV", stv_text(stv1))
+                row(lines, "Premise 2 STV", stv_text(stv2))
 
-                result = run_pln_operation(
-                    "Deduction",
-                    stv1,
-                    stv2,
-                )
+                result = run_pln_operation("Deduction", stv1, stv2)
 
                 conclusion = rule["conclusion"]
                 conclusion_stv = result["stv"]
@@ -797,18 +751,15 @@ def run_forward():
                 row(lines, "MeTTa query", result["query"])
                 row(lines, "Raw result", result["raw"])
 
+                # If the conclusion is already known, combine the
+                # old and new evidence using the actual revision rule.
                 if conclusion in available:
                     old_stv = available[conclusion]
 
                     lines.append("")
                     lines.append("Existing conclusion found.")
-
-                    show_stv(lines, "Previous STV", old_stv)
-                    show_stv(
-                        lines,
-                        "New evidence STV",
-                        conclusion_stv,
-                    )
+                    row(lines, "Previous STV", stv_text(old_stv))
+                    row(lines, "New evidence STV", stv_text(conclusion_stv))
 
                     revision = run_pln_operation(
                         "Revision",
@@ -816,33 +767,22 @@ def run_forward():
                         conclusion_stv,
                     )
 
-                    row(
-                        lines,
-                        "Revision query",
-                        revision["query"],
-                    )
-
-                    show_stv(
-                        lines,
-                        "Revised STV",
-                        revision["stv"],
-                    )
+                    row(lines, "Revision query", revision["query"])
+                    row(lines, "Revised STV", stv_text(revision["stv"]))
 
                     conclusion_stv = revision["stv"]
 
                 available[conclusion] = conclusion_stv
                 derived_facts[conclusion] = conclusion_stv
-
                 next_frontier.add(conclusion)
 
                 row(lines, "Derived conclusion", conclusion)
-                show_stv(
-                    lines,
-                    "Conclusion STV",
-                    conclusion_stv,
-                )
+                row(lines, "Conclusion STV", stv_text(conclusion_stv))
 
                 fired_rules.add(rule["id"])
+                applied_this_depth += 1
+
+            final_frontier = next_frontier
 
             if not next_frontier:
                 lines.extend([
@@ -871,22 +811,22 @@ def run_forward():
         else:
             lines.append("No derived conclusions were produced.")
 
-        # Execute the actual forward-chaining function.
+        # Run the actual loaded MeTTa chaining function separately.
         engine_query = (
             f"!(forward-query {start} &self "
             f"(fromNumber {depth_limit}))"
         )
 
-        section(lines, "RESULT FROM forward_chain.metta")
+        section(lines, "RAW RESULT FROM forward_chain.metta")
         row(lines, "Query", engine_query)
         lines.append(format_result(execute(engine_query)))
 
         lines.extend([
             "",
             "STV TRACE NOTE",
-            "The rule-by-rule STV calculations above call pln.metta.",
-            "The forward-query result is displayed separately from "
-            "the Python-generated STV trace.",
+            "The rule-by-rule STV calculations shown above call pln.metta.",
+            "The existing forward_chain.metta search returns conclusions, "
+            "but does not itself propagate STVs through every recursive step.",
         ])
 
         reasoning_history.append({
@@ -895,11 +835,7 @@ def run_forward():
             "depth": depth_limit,
         })
 
-        show_output(
-            "FORWARD CHAINING — FULL TRACE",
-            "\n".join(lines),
-        )
-
+        show_output("FORWARD CHAINING — FULL TRACE", "\n".join(lines))
         refresh_selectors()
 
     except Exception as error:
@@ -907,126 +843,133 @@ def run_forward():
 
 
 # ============================================================
-# BACKWARD CHAINING — DYNAMIC GOAL AND PROOF TRACE
+# BACKWARD CHAINING — PROOF TRACE
 # ============================================================
 
-def prove_goal(goal, available, remaining_depth, visited, lines):
+def prove_goal(
+    goal,
+    available,
+    remaining_depth,
+    visited,
+    lines,
+    path=None,
+):
+    """Search backward from a goal and record every attempted rule path."""
+    if path is None:
+        path = []
+
+    current_path = path + [goal]
+    indent = "    " * (len(current_path) - 1)
     lines.append("")
-    lines.append(
-        f"GOAL: {goal} | remaining depth: {remaining_depth}"
-    )
+    lines.append(f"{indent}GOAL: {goal}")
+    lines.append(f"{indent}Remaining depth: {remaining_depth}")
+    lines.append(f"{indent}Path: {' -> '.join(current_path)}")
 
-    if goal in available:
-        stv = available[goal]
-
-        row(lines, "Known fact / conclusion", goal)
-        show_stv(lines, "Available STV", stv)
-
-        lines.append(
-            "This branch stops: the goal is already known."
-        )
-
+    # Original knowledge-base facts are the terminal evidence for a proof.
+    if goal in facts:
+        stv = query_fact_stv(goal)
+        available[goal] = stv
+        lines.append(f"{indent}MATCHED ORIGINAL FACT: {facts[goal]['id']}")
+        row(lines, "Fact expression", goal)
+        show_stv(lines, "Fact STV", stv)
+        lines.append(f"{indent}SUCCESS: matched an original knowledge-base fact.")
         return True, stv
 
     if remaining_depth <= 0:
-        lines.append("STOP: search depth limit reached.")
+        lines.append(f"{indent}STOP: search depth limit reached before proving this goal.")
         return False, None
 
     if goal in visited:
-        lines.append("STOP: cycle detected.")
+        lines.append(f"{indent}STOP: cycle detected on this reasoning path.")
         return False, None
 
-    # Find candidate rules dynamically from rule.metta.
     candidates = rules_for_conclusion(goal)
-
     if not candidates:
-        lines.append("FAIL: no rule concludes this goal.")
+        lines.append(f"{indent}FAIL: no loaded rule concludes {goal}.")
         return False, None
 
+    lines.append(f"{indent}FOUND {len(candidates)} candidate rule(s) for {goal}.")
+    successful_results = []
     next_visited = visited | {goal}
 
-    for rule in candidates:
-        section(lines, f"TRY RULE {rule['id']}")
+    # Try every rule that concludes this goal, not only the first successful one.
+    for index, rule in enumerate(candidates, start=1):
+        section(lines, f"{indent}CANDIDATE RULE {index}: {rule['id']}")
         rule_details(lines, rule)
 
+        lines.append(f"{indent}PROVE PREMISE 1: {rule['premise1']}")
         ok1, stv1 = prove_goal(
-            rule["premise1"],
-            available,
-            remaining_depth - 1,
-            next_visited,
-            lines,
+            rule["premise1"], available, remaining_depth - 1,
+            next_visited, lines, current_path,
         )
-
         if not ok1:
-            lines.append(
-                "Rule failed: first premise was not proved."
-            )
+            lines.append(f"{indent}RULE FAILED ({rule['id']}): premise 1 was not proved.")
             continue
+        lines.append(f"{indent}PREMISE 1 PROVED: {rule['premise1']}")
 
+        lines.append(f"{indent}PROVE PREMISE 2: {rule['premise2']}")
         ok2, stv2 = prove_goal(
-            rule["premise2"],
-            available,
-            remaining_depth - 1,
-            next_visited,
-            lines,
+            rule["premise2"], available, remaining_depth - 1,
+            next_visited, lines, current_path,
         )
-
         if not ok2:
-            lines.append(
-                "Rule failed: second premise was not proved."
-            )
+            lines.append(f"{indent}RULE FAILED ({rule['id']}): premise 2 was not proved.")
             continue
+        lines.append(f"{indent}PREMISE 2 PROVED: {rule['premise2']}")
 
-        section(
-            lines,
-            f"CALCULATE CONCLUSION STV — {rule['id']}",
-        )
-
+        section(lines, f"CALCULATE CONCLUSION STV — {rule['id']}")
+        row(lines, "Rule", rule["id"])
+        row(lines, "Conclusion", rule["conclusion"])
         row(lines, "Premise 1", rule["premise1"])
         show_stv(lines, "Premise 1 STV", stv1)
-
         row(lines, "Premise 2", rule["premise2"])
         show_stv(lines, "Premise 2 STV", stv2)
+        show_stv(lines, "Rule STV", rule["stv"])
 
-        # Calculate using the MeTTa deduction operation.
-        result = run_pln_operation(
-            "Deduction",
-            stv1,
-            stv2,
-        )
+        premise_result = run_pln_operation("Deduction", stv1, stv2)
+        row(lines, "Premise deduction query", premise_result["query"])
+        row(lines, "Premise deduction result", premise_result["raw"])
 
-        row(lines, "MeTTa query", result["query"])
-        row(lines, "Raw result", result["raw"])
-
-        # Preserve the existing rule-STV combination behavior.
+        # Preserve the existing application's rule-STV combination calculation.
         rule_result = run_pln_operation(
-            "Deduction",
-            result["stv"],
-            rule["stv"],
+            "Deduction", premise_result["stv"], rule["stv"]
+        )
+        row(lines, "Rule combination query", rule_result["query"])
+        row(lines, "Rule combination result", rule_result["raw"])
+        show_stv(lines, "Candidate conclusion STV", rule_result["stv"])
+
+        successful_results.append({"rule": rule, "stv": rule_result["stv"]})
+        lines.append(
+            f"{indent}SUCCESSFUL PATH: {' -> '.join(current_path)} -> {rule['id']}"
         )
 
-        row(
-            lines,
-            "Rule-combination query",
-            rule_result["query"],
-        )
+    if not successful_results:
+        lines.append(f"{indent}FAIL: all candidate rules failed for {goal}.")
+        return False, None
 
-        show_stv(
-            lines,
-            "Derived conclusion STV",
-            rule_result["stv"],
-        )
+    # Combine multiple successful derivations using the existing MeTTa Revision operation.
+    final_stv = successful_results[0]["stv"]
+    if len(successful_results) > 1:
+        section(lines, f"{indent}REVISE ALTERNATIVE PROOFS FOR {goal}")
+        row(lines, "Successful derivations", len(successful_results))
+        for alternative in successful_results[1:]:
+            row(lines, "Alternative rule", alternative["rule"]["id"])
+            show_stv(lines, "Current combined STV", final_stv)
+            show_stv(lines, "Alternative STV", alternative["stv"])
+            revision = run_pln_operation("Revision", final_stv, alternative["stv"])
+            row(lines, "Revision query", revision["query"])
+            row(lines, "Revision result", revision["raw"])
+            final_stv = revision["stv"]
+            show_stv(lines, "Combined STV", final_stv)
 
-        available[goal] = rule_result["stv"]
-        derived_facts[goal] = rule_result["stv"]
-
-        lines.append(f"PROVED: {goal}")
-
-        return True, rule_result["stv"]
-
-    lines.append(f"FAIL: no candidate rule proved {goal}.")
-
-    return False, None
+    available[goal] = final_stv
+    derived_facts[goal] = final_stv
+    lines.append(f"{indent}PROVED: {goal}")
+    row(lines, "Successful candidate rules", ", ".join(
+        result["rule"]["id"] for result in successful_results
+    ))
+    show_stv(lines, "Final goal STV", final_stv)
+    return True, final_stv
 
 
 def run_backward():
@@ -1037,67 +980,70 @@ def run_backward():
 
         if not VALID_ATOM.fullmatch(goal):
             raise ValueError(
-                "Choose a goal expression from the selector."
+                "Enter a goal in the form (soil-dry), or select a goal from the list."
             )
 
         if depth_limit < 0:
-            raise ValueError("Depth must be zero or greater.")
+            raise ValueError("Search depth must be zero or greater.")
 
-        available = {}
-
-        for expression in facts:
-            available[expression] = query_fact_stv(expression)
-
-        available.update(derived_facts)
+        # Start from original facts only. Previous session-derived conclusions
+        # must not short-circuit the proof trace and hide the rules used.
+        available = {
+            expression: query_fact_stv(expression)
+            for expression in facts
+        }
 
         lines = [
-            f"Target goal: {goal}",
-            f"Maximum depth: {depth_limit}",
+            f"USER-SELECTED GOAL: {goal}",
+            f"Maximum search depth: {depth_limit}",
             "",
-            "Backward chaining starts from the selected goal.",
-            "Candidate rules are retrieved dynamically from "
-            "knowledge/rule.metta.",
-            "No specific conclusion is hardcoded.",
+            "Backward chaining starts with the goal entered by the user.",
+            "Rules are matched dynamically by their conclusion.",
+            "Both premises of a candidate rule must be proved.",
+            "Every candidate rule is examined; failed paths are recorded.",
+            "Original facts and their STVs are shown when matched.",
         ]
 
         success, result_stv = prove_goal(
-            goal,
-            available,
-            depth_limit,
-            set(),
-            lines,
+            goal=goal,
+            available=available,
+            remaining_depth=depth_limit,
+            visited=set(),
+            lines=lines,
+            path=[],
         )
 
-        section(lines, "FINAL PROOF RESULT")
-
-        row(lines, "Goal", goal)
-        row(lines, "Proven", "YES" if success else "NO")
-
+        section(lines, "FINAL BACKWARD-CHAINING RESULT")
+        row(lines, "Requested goal", goal)
+        row(lines, "Proof status", "PROVED" if success else "NOT PROVED")
+        row(lines, "Maximum depth", depth_limit)
         if result_stv is not None:
-            show_stv(lines, "Goal STV", result_stv)
+            show_stv(lines, "Final goal STV", result_stv)
         else:
-            row(lines, "Goal STV", "No result")
+            row(lines, "Final goal STV", "Unavailable: no successful proof")
 
-        # Execute the project's actual MeTTa backward-chaining function.
+        # Also execute the project's MeTTa backward-query with this same user goal.
         engine_query = (
             f"!(backward-query {goal} &self "
             f"(fromNumber {depth_limit}))"
         )
+        section(lines, "RAW RESULT FROM backward_chain.metta")
+        row(lines, "MeTTa query", engine_query)
+        try:
+            lines.append(format_result(execute(engine_query)))
+        except Exception as engine_error:
+            lines.append(f"MeTTa backward-query failed: {engine_error}")
+            lines.append(
+                "The Python proof trace above is separate from the direct MeTTa query result."
+            )
 
-        section(lines, "ACTUAL METTA BACKWARD-CHAINING RESULT")
-        row(lines, "Query", engine_query)
-
-        engine_result = execute(engine_query)
-
-        lines.append(format_result(engine_result))
-
+        section(lines, "STOP CONDITIONS")
         lines.extend([
-            "",
-            "EXECUTION NOTE",
-            "The proof trace above shows the dynamically matched rules "
-            "and their STV calculations.",
-            "The actual backward-query result is displayed separately "
-            "from the Python proof trace.",
+            "- The goal matches an original knowledge-base fact.",
+            "- All candidate rules have been examined.",
+            "- No rule concludes the requested goal.",
+            "- A branch reaches the configured depth limit.",
+            "- A cycle is detected on a reasoning path.",
         ])
 
         reasoning_history.append({
@@ -1107,11 +1053,7 @@ def run_backward():
             "success": success,
         })
 
-        show_output(
-            "BACKWARD CHAINING — FULL TRACE",
-            "\n".join(lines),
-        )
-
+        show_output("BACKWARD CHAINING — FULL REASONING TRACE", "\n".join(lines))
         refresh_selectors()
 
     except Exception as error:
@@ -1127,16 +1069,10 @@ def show_engine_source():
         lines = []
 
         for path in [PLN_FILE, *CHAIN_FILES]:
-            section(
-                lines,
-                str(path.relative_to(BASE_DIR)),
-            )
+            section(lines, str(path.relative_to(BASE_DIR)))
             lines.append(read_source(path))
 
-        show_output(
-            "ACTUAL METTA ENGINE SOURCE",
-            "\n".join(lines),
-        )
+        show_output("ACTUAL METTA ENGINE SOURCE", "\n".join(lines))
 
     except Exception as error:
         show_error("ENGINE SOURCE", error)
@@ -1147,36 +1083,24 @@ def show_knowledge_source():
         lines = []
 
         for path in [FACT_FILE, RULE_FILE]:
-            section(
-                lines,
-                str(path.relative_to(BASE_DIR)),
-            )
+            section(lines, str(path.relative_to(BASE_DIR)))
             lines.append(read_source(path))
 
-        show_output(
-            "ACTUAL KNOWLEDGE-BASE SOURCE",
-            "\n".join(lines),
-        )
+        show_output("ACTUAL KNOWLEDGE-BASE SOURCE", "\n".join(lines))
 
     except Exception as error:
         show_error("KNOWLEDGE BASE", error)
 
 
 # ============================================================
-# INITIALIZE THE METTA ENGINE
+# GUI
 # ============================================================
 
 try:
     load_project()
 except Exception as error:
-    raise SystemExit(
-        f"Could not initialize the MeTTa engine:\n{error}"
-    )
+    raise SystemExit(f"Could not initialize the MeTTa engine:\n{error}")
 
-
-# ============================================================
-# GUI
-# ============================================================
 
 root = tk.Tk()
 root.title("Agricultural PLN Reasoning Engine")
@@ -1187,9 +1111,6 @@ style = ttk.Style()
 style.theme_use("clam")
 style.configure("TButton", padding=6)
 style.configure("TCombobox", padding=4)
-
-
-# ---------------- Application heading -------------------------
 
 tk.Label(
     root,
@@ -1202,8 +1123,8 @@ tk.Label(
 tk.Label(
     root,
     text=(
-        "Knowledge Base • STV • Deduction • Induction • "
-        "Abduction • Revision • Forward and Backward Chaining"
+        "Knowledge Base • STV • Deduction • Induction • Abduction "
+        "• Revision • Forward and Backward Chaining"
     ),
     font=("Arial", 10),
     bg="#101827",
@@ -1221,12 +1142,10 @@ input_frame = tk.LabelFrame(
     padx=10,
     pady=8,
 )
-
 input_frame.pack(fill=tk.X, padx=18, pady=4)
 
 operation_var = tk.StringVar(value="Deduction")
 depth_var = tk.StringVar(value="3")
-
 
 tk.Label(
     input_frame,
@@ -1243,7 +1162,6 @@ ttk.Combobox(
     width=16,
 ).grid(row=0, column=1, padx=5, pady=5)
 
-
 tk.Label(
     input_frame,
     text="Fact / input 1:",
@@ -1256,9 +1174,7 @@ fact1_combo = ttk.Combobox(
     state="readonly",
     width=34,
 )
-
 fact1_combo.grid(row=0, column=3, padx=5, pady=5)
-
 
 tk.Label(
     input_frame,
@@ -1272,13 +1188,11 @@ fact2_combo = ttk.Combobox(
     state="readonly",
     width=34,
 )
-
 fact2_combo.grid(row=1, column=1, padx=5, pady=5)
-
 
 tk.Label(
     input_frame,
-    text="Rule (for abduction):",
+    text="Rule:",
     bg="#101827",
     fg="white",
 ).grid(row=1, column=2, padx=5, pady=5, sticky="w")
@@ -1286,11 +1200,9 @@ tk.Label(
 rule_combo = ttk.Combobox(
     input_frame,
     state="readonly",
-    width=30,
+    width=16,
 )
-
 rule_combo.grid(row=1, column=3, padx=5, pady=5, sticky="w")
-
 
 tk.Label(
     input_frame,
@@ -1301,12 +1213,10 @@ tk.Label(
 
 goal_combo = ttk.Combobox(
     input_frame,
-    state="readonly",
+    state="normal",
     width=34,
 )
-
 goal_combo.grid(row=2, column=1, padx=5, pady=5)
-
 
 tk.Label(
     input_frame,
@@ -1334,7 +1244,6 @@ action_frame = tk.LabelFrame(
     padx=10,
     pady=8,
 )
-
 action_frame.pack(fill=tk.X, padx=18, pady=4)
 
 actions = [
@@ -1359,9 +1268,6 @@ for index, (label, callback) in enumerate(actions):
         sticky="ew",
     )
 
-for column in range(3):
-    action_frame.columnconfigure(column, weight=1)
-
 
 # ---------------- Revision controls ----------------------------
 
@@ -1373,9 +1279,7 @@ revision_frame = tk.LabelFrame(
     padx=10,
     pady=8,
 )
-
 revision_frame.pack(fill=tk.X, padx=18, pady=4)
-
 
 tk.Label(
     revision_frame,
@@ -1389,9 +1293,7 @@ revision_target_combo = ttk.Combobox(
     state="readonly",
     width=34,
 )
-
 revision_target_combo.grid(row=0, column=1, padx=5, pady=5)
-
 
 tk.Label(
     revision_frame,
@@ -1405,13 +1307,11 @@ evidence_combo = ttk.Combobox(
     state="readonly",
     width=34,
 )
-
 evidence_combo.grid(row=0, column=3, padx=5, pady=5)
 
-
+# The new evidence STV is entered here; both values must be between 0 and 1.
 new_evidence_strength_var = tk.StringVar()
 new_evidence_confidence_var = tk.StringVar()
-
 
 tk.Label(
     revision_frame,
@@ -1425,7 +1325,6 @@ ttk.Entry(
     textvariable=new_evidence_strength_var,
     width=12,
 ).grid(row=1, column=1, padx=5, pady=5, sticky="w")
-
 
 tk.Label(
     revision_frame,
@@ -1442,10 +1341,11 @@ ttk.Entry(
 
 
 def run_revision_from_controls():
+    # Reuse the general operation handler with the selected proposition
+    # and the manually entered new-evidence strength/confidence.
     operation_var.set("Revision")
     fact1_combo.set(revision_target_combo.get())
     fact2_combo.set(evidence_combo.get())
-
     run_selected_operation()
 
 
@@ -1485,7 +1385,6 @@ output = ScrolledText(
     wrap=tk.WORD,
     height=24,
 )
-
 output.pack(
     fill=tk.BOTH,
     expand=True,
@@ -1495,24 +1394,17 @@ output.pack(
 
 output.configure(state=tk.DISABLED)
 
-
 show_output(
     "AGRICULTURAL PLN REASONING ENGINE",
     f"Loaded facts: {len(facts)}\n"
     f"Loaded rules: {len(rules)}\n\n"
     "1. Select an operation and its inputs.\n"
-    "2. Deduction and induction automatically match a rule "
-    "from the selected premises.\n"
-    "3. Abduction uses the selected explanatory rule and "
-    "shows its premises.\n"
-    "4. Backward chaining starts from the selected goal and "
-    "searches the loaded rules dynamically.\n"
-    "5. Revision accepts new evidence strength and confidence.\n"
-    "6. Derived STVs remain available in this GUI session.\n\n"
-    "Important: session-derived STVs are not persisted to "
-    "the source files."
+    "2. Run the operation to see each input STV and the MeTTa result.\n"
+    "3. Select a rule to inspect its premises, conclusion, and rule STV.\n"
+    "4. Use Forward or Backward Chaining to inspect a reasoning trace.\n"
+    "5. Derived STVs remain available in this GUI session.\n\n"
+    "Important: session-derived STVs are not persisted to the source files."
 )
 
 refresh_selectors()
-
 root.mainloop()
